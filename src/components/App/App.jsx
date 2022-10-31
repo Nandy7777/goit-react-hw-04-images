@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect} from 'react';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Searchbar from '../Searchbar';
@@ -10,97 +10,79 @@ import { Loader } from '../Loader/Loader';
 import Modal from '../Modal';
 import { Enter, AppWrap } from './App.styled';
 
-export default class App extends Component {
-  state = {
-    imageName: '',
-    images: [],
-    error: null,
-    status: 'idle',
-    tags: null,
-    page: 1,
-    showModal: false,
-  };
+export default function App() {
+  const [imageName, setImageName] = useState('');
+  const [images, setImages] = useState([]);
+  const [status, setStatus] = useState('idle');
+  // const [error, setError] = useState(null);
+  const [tags, setTags] = useState('null');
+  const [page, setPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [largeImageURL, setLargeImageURL] = useState('');
 
-  componentDidUpdate(prevProps, prevState) {
-    const prevName = prevState.imageName;
-    const nextName = this.state.imageName;
-    const prevPage = prevState.page;
-    const nextPage = this.state.page;
+  useEffect(() => {
+    if (imageName && page) {
+      setStatus('pending');
 
-    if (prevName !== nextName || prevPage !== nextPage) {
-      this.fetchImages(nextName, nextPage);
+      ImageAPI.fetchImages(imageName, page)
+        .then(data => {
+          if (data.total === 0) {
+            setStatus('rejected');
+          }
+          setImages(prevState => [...prevState, ...data.hits]);
+          setStatus('resolved');
+        })
+        .catch(error => {
+          setStatus('rejected');
+        });
     }
-  }
+  }, [imageName, page]);
 
-  fetchImages(nextName, nextPage) {
-    ImageAPI.fetchImages(nextName, nextPage)
-      .then(data => {
-        if (data.total === 0) {
-          return this.setState({
-            status: 'rejected',
-            images: [],
-          });
-        }
-        this.setState(prevState => ({
-            images: [...prevState.images, ...data.hits],
-            status: 'resolved',
-            imageName: nextName,
-        }));
-      })
-      .catch(error => this.setState({ error, status: 'rejected' }));
-  }
-
-  handleSearchbarSubmit = name => {
-    this.setState({ imageName: name, page: 1, images: [] });
+  const handleSearchbarSubmit = name => {
+    setImageName(name);
+    setPage(1);
+    setImages([]);
   };
 
-  loadMore = () => {
-    this.setState(state => ({ page: state.page + 1 }));
+  const loadMore = () => {
+    setPage(state => state + 1);
   };
 
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({ showModal: !showModal }));
+  const toggleModal = () => {
+    setShowModal(!showModal);
   };
 
-  openModal = e => {
+  const openModal = e => {
     const largeImageURL = e.target.dataset.large;
     const tags = e.target.alt;
 
     if (e.target.nodeName === 'IMG') {
-      this.setState(({ showModal }) => ({
-        showModal: !showModal,
-        largeImageURL: largeImageURL,
-        tags: tags,
-      }));
+      setShowModal(!showModal);
+      setLargeImageURL(largeImageURL);
+      setTags(tags);
     }
   };
-
-  render() {
+   
     return (
       <AppWrap>
-        <Searchbar onSubmit={this.handleSearchbarSubmit} />
-        {this.state.status === 'idle' && (
-          <Enter>Enter your search request!</Enter>
-        )}
-        <ImageGallery images={this.state.images} openModal={this.openModal} />
-        {this.state.status === 'pending' && (<Loader />)}
-        {this.state.status === 'rejected' && (
+        <Searchbar onSubmit={handleSearchbarSubmit} />
+        {status === 'idle' && <Enter>Enter your search request!</Enter>}
+        <ImageGallery images={images} openModal={openModal} />
+        {status === 'pending' && <Loader />}
+        {status === 'rejected' && (
           <ErrorViewImg
-            message={`No images for your request ${this.state.imageName}. Go cry...`}
+            message={`No images for your request ${imageName}. Go cry...`}
           />
         )}
-        {this.state.status === 'resolved' && (
-          <Button loadMore={this.loadMore} />
-        )}
-        {this.state.showModal && (
+        {status === 'resolved' && <Button loadMore={loadMore} />}
+        {showModal && (
           <Modal
-            largeImageURL={this.state.largeImageURL}
-            tags={this.state.tags}
-            onClose={this.toggleModal}
+            largeImageURL={largeImageURL}
+            tags={tags}
+            onClose={toggleModal}
           />
         )}
         <ToastContainer autoClose={3000} theme="colored" />
       </AppWrap>
     );
-  }
 }
